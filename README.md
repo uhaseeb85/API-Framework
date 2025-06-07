@@ -2,6 +2,28 @@
 
 A comprehensive Spring-based framework for standardizing external API integrations across your team. This framework supports both REST and SOAP protocols with consistent request/response handling, centralized error management, and robust testing capabilities.
 
+## 🚀 Recent Updates (v1.1.0)
+
+### ⭐ **Major Enhancements**
+
+- **🔧 Per-Template Configuration**: New Java-based configuration system allowing different RestTemplate settings per API
+- **⚡ Performance Optimization**: RestTemplate caching at startup eliminates request-time creation overhead
+- **📚 Complete Documentation**: Comprehensive JavaDoc documentation added to all critical classes
+- **🎯 Runtime Management**: Dynamic configuration management and monitoring capabilities
+- **🏗️ Resource Management**: Automatic connection pool cleanup and lifecycle management
+
+### 🆕 **New Classes**
+
+- `RestTemplateConfig`: Java-based configuration with builder pattern and validation
+- `RestTemplateFactory`: Factory service for creating optimized RestTemplate instances  
+- `RestTemplateConfigExample`: Real-world configuration examples and best practices
+
+### 🔄 **Breaking Changes**
+
+- **None** - All changes are backward compatible with existing implementations
+- Previous RestTemplate registration methods continue to work as before
+- New configuration system works alongside existing approaches
+
 ## Features
 
 - **✅ REST and SOAP Support**: Unified interface for both REST and SOAP API calls
@@ -14,6 +36,10 @@ A comprehensive Spring-based framework for standardizing external API integratio
 - **✅ Logging**: Comprehensive request/response logging with configurable levels
 - **✅ Async Support**: Asynchronous API call capabilities with callbacks
 - **✅ Custom RestTemplate Support**: Per-API integration custom RestTemplate configuration
+- **✅ Per-Template Configuration**: Java-based configuration for individual API requirements
+- **✅ Runtime Configuration Management**: Dynamic RestTemplate configuration and optimization
+- **✅ Performance Optimized**: RestTemplate caching at startup to eliminate request-time overhead
+- **✅ Resource Management**: Automatic connection pool management and cleanup
 
 ## Quick Start
 
@@ -133,7 +159,7 @@ apiService.executeAsync(request, UserDto.class, new ApiCallback<UserDto>() {
 
 ## Custom RestTemplate Support
 
-The framework provides **full support** for custom RestTemplates per API integration, giving you maximum flexibility for different external services.
+The framework provides **enterprise-grade RestTemplate configuration** with three approaches for maximum flexibility across different external services.
 
 ### Method 1: Custom RestTemplate per Call
 
@@ -151,7 +177,7 @@ ApiRequest request = ApiRequest.builder()
 ApiResponse<DataDto> response = apiService.executeRest(request, DataDto.class, customRestTemplate);
 ```
 
-### Method 2: Register Custom RestTemplates for URL Patterns
+### Method 2: Register Pre-Created RestTemplates for URL Patterns
 
 ```java
 // Register custom RestTemplates for different services
@@ -173,32 +199,125 @@ ApiRequest request = ApiRequest.builder()
 ApiResponse<UserDto> response = apiService.executeRest(request, UserDto.class);
 ```
 
-### Method 3: Different Configurations for Different APIs
+### Method 3: ⭐ **NEW** - Java-Based Per-Template Configuration
+
+**The most powerful and flexible approach** - Configure RestTemplates with Java objects that are validated at compile-time and created once at startup:
 
 ```java
-// Payment API - requires special SSL and timeouts
-RestTemplate paymentTemplate = new RestTemplate();
-HttpComponentsClientHttpRequestFactory paymentFactory = new HttpComponentsClientHttpRequestFactory();
-paymentFactory.setConnectTimeout(5000);
-paymentFactory.setReadTimeout(15000);
-paymentTemplate.setRequestFactory(paymentFactory);
-
-// Notification API - rate limited
-RestTemplate notificationTemplate = new RestTemplate();
-HttpClient rateLimitedClient = HttpClientBuilder.create()
-    .setMaxConnTotal(5)
-    .setMaxConnPerRoute(2)
+// Payment APIs - Fast response required, strict timeouts
+RestTemplateConfig paymentConfig = RestTemplateConfig.builder("payment-api")
+    .connectionTimeoutMs(2000)
+    .readTimeoutMs(5000)
+    .maxConnections(50)
+    .maxConnectionsPerRoute(10)
+    .maxRetryAttempts(1)
+    .retryDelayMs(500)
+    .enableLogging(true)
     .build();
-HttpComponentsClientHttpRequestFactory notificationFactory = new HttpComponentsClientHttpRequestFactory();
-notificationFactory.setHttpClient(rateLimitedClient);
-notificationTemplate.setRequestFactory(notificationFactory);
 
-// Use them for specific calls
-ApiResponse<PaymentDto> paymentResponse = apiService.executeRest(
-    paymentRequest, PaymentDto.class, paymentTemplate);
+// Batch APIs - Slower, needs higher tolerance
+RestTemplateConfig batchConfig = RestTemplateConfig.builder("batch-processing")
+    .connectionTimeoutMs(10000)
+    .readTimeoutMs(300000)  // 5 minutes
+    .maxConnections(10)
+    .maxConnectionsPerRoute(2)
+    .maxRetryAttempts(5)
+    .retryDelayMs(2000)
+    .enableLogging(false)  // Reduce noise
+    .build();
 
-ApiResponse<String> notificationResponse = apiService.executeRest(
-    notificationRequest, String.class, notificationTemplate);
+// External Partner APIs - Conservative settings
+RestTemplateConfig externalConfig = RestTemplateConfig.builder("external-partner")
+    .connectionTimeoutMs(5000)
+    .readTimeoutMs(30000)
+    .maxConnections(20)
+    .maxConnectionsPerRoute(5)
+    .maxRetryAttempts(3)
+    .retryDelayMs(1000)
+    .enableLogging(true)
+    .build();
+
+// Register configurations - RestTemplates created once at startup
+apiService.registerRestTemplateConfig("https://payment.gateway.com/*", paymentConfig);
+apiService.registerRestTemplateConfig("https://batch.processor.com/*", batchConfig);
+apiService.registerRestTemplateConfig("https://partner-api.external.com/*", externalConfig);
+
+// All subsequent calls automatically use optimized RestTemplates
+ApiRequest paymentRequest = ApiRequest.builder()
+    .url("https://payment.gateway.com/process")  // Uses fast payment config
+    .method("POST")
+    .build();
+
+ApiResponse<PaymentDto> response = apiService.executeRest(paymentRequest, PaymentDto.class);
+```
+
+### Performance Benefits of Method 3
+
+✅ **Startup Optimization**: RestTemplates created once during application startup  
+✅ **Zero Request Overhead**: No RestTemplate creation during API calls  
+✅ **Connection Pool Reuse**: Dedicated pools per API type for optimal performance  
+✅ **Type Safety**: Compile-time validation of configuration parameters  
+✅ **Resource Management**: Automatic cleanup and lifecycle management  
+
+### Pre-Configured RestTemplate Examples
+
+The framework includes common configuration patterns:
+
+```java
+// Fast APIs (e.g., caching, lookups)
+RestTemplateConfig fastApiConfig = RestTemplateFactory.createFastApiConfig("fast-lookup");
+
+// Slow APIs (e.g., reports, exports)
+RestTemplateConfig slowApiConfig = RestTemplateFactory.createSlowApiConfig("report-generation");
+
+// External APIs (e.g., third-party services)
+RestTemplateConfig externalApiConfig = RestTemplateFactory.createExternalApiConfig("third-party");
+
+// High-volume APIs (e.g., streaming, bulk operations)
+RestTemplateConfig highVolumeConfig = RestTemplateFactory.createHighVolumeApiConfig("bulk-data");
+```
+
+### Runtime Configuration Management
+
+Dynamically manage RestTemplate configurations:
+
+```java
+// Get configuration summary
+Map<String, Object> summary = apiService.getConfigurationSummary();
+System.out.println("Active Configurations: " + summary.get("customConfigurations"));
+
+// Get all registered configurations
+Map<String, RestTemplateConfig> configs = apiService.getCustomRestTemplateConfigs();
+
+// Remove specific configuration
+apiService.removeRestTemplateConfig("https://old-api.example.com/*");
+
+// Clear all configurations (useful for testing)
+apiService.clearRestTemplateConfigs();
+```
+
+### Priority System
+
+The framework uses an intelligent priority system:
+
+1. **Pre-created RestTemplate** (Method 1 & 2) - Highest priority
+2. **Custom Configuration** (Method 3) - Second priority  
+3. **Global Configuration** - Fallback
+
+```java
+// Register both pre-created template and configuration
+apiService.registerCustomRestTemplate("https://api.example.com/exact", preCreatedTemplate);
+apiService.registerRestTemplateConfig("https://api.example.com/*", customConfig);
+
+// Call to exact URL uses pre-created template (higher priority)
+ApiRequest exactRequest = ApiRequest.builder()
+    .url("https://api.example.com/exact")  // Uses preCreatedTemplate
+    .build();
+
+// Call to pattern URL uses custom configuration
+ApiRequest patternRequest = ApiRequest.builder()
+    .url("https://api.example.com/other")  // Uses customConfig
+    .build();
 ```
 
 ### SOAP with Custom RestTemplate
@@ -216,7 +335,7 @@ ApiRequest soapRequest = ApiRequest.builder()
 ApiResponse<String> soapResponse = apiService.executeSoap(soapRequest, soapTemplate);
 ```
 
-### Management Methods
+### Legacy Management Methods (Pre-Created RestTemplates)
 
 ```java
 // Register custom RestTemplate
@@ -230,6 +349,77 @@ Map<String, RestTemplate> registered = apiService.getCustomRestTemplates();
 
 // Clear all registrations
 apiService.clearCustomRestTemplates();
+```
+
+### Complete Configuration Example
+
+Here's a real-world example setting up different API configurations:
+
+```java
+@Configuration
+public class ApiIntegrationConfig {
+    
+    @Autowired
+    private ApiService apiService;
+    
+    @PostConstruct
+    public void setupApiConfigurations() {
+        // Payment Gateway - Critical, fast response needed
+        RestTemplateConfig paymentConfig = RestTemplateConfig.builder("payment-gateway")
+            .connectionTimeoutMs(2000)
+            .readTimeoutMs(5000)
+            .maxConnections(50)
+            .maxConnectionsPerRoute(10)
+            .maxRetryAttempts(1)
+            .retryDelayMs(500)
+            .enableLogging(true)
+            .build();
+        
+        // User Management Service - Moderate performance requirements
+        RestTemplateConfig userConfig = RestTemplateConfig.builder("user-management")
+            .connectionTimeoutMs(3000)
+            .readTimeoutMs(10000)
+            .maxConnections(30)
+            .maxConnectionsPerRoute(8)
+            .maxRetryAttempts(2)
+            .retryDelayMs(1000)
+            .enableLogging(true)
+            .build();
+        
+        // Reporting Service - Slow, batch operations
+        RestTemplateConfig reportConfig = RestTemplateConfig.builder("reporting-service")
+            .connectionTimeoutMs(10000)
+            .readTimeoutMs(300000)  // 5 minutes
+            .maxConnections(5)
+            .maxConnectionsPerRoute(2)
+            .maxRetryAttempts(3)
+            .retryDelayMs(5000)
+            .enableLogging(false)
+            .build();
+        
+        // External Partner APIs - Conservative, reliable
+        RestTemplateConfig partnerConfig = RestTemplateConfig.builder("external-partners")
+            .connectionTimeoutMs(5000)
+            .readTimeoutMs(30000)
+            .maxConnections(20)
+            .maxConnectionsPerRoute(5)
+            .maxRetryAttempts(3)
+            .retryDelayMs(2000)
+            .enableLogging(true)
+            .build();
+        
+        // Register all configurations
+        apiService.registerRestTemplateConfig("https://payment.gateway.com/*", paymentConfig);
+        apiService.registerRestTemplateConfig("https://users.internal.com/*", userConfig);
+        apiService.registerRestTemplateConfig("https://reports.internal.com/*", reportConfig);
+        apiService.registerRestTemplateConfig("https://*.partner-api.com/*", partnerConfig);
+        
+        // Log configuration summary
+        Map<String, Object> summary = apiService.getConfigurationSummary();
+        System.out.println("API Framework initialized with " + 
+                          summary.get("customConfigurations") + " custom configurations");
+    }
+}
 ```
 
 ## Service Mocking
@@ -563,7 +753,34 @@ public class YourApiIntegrationTest {
 
 ## Best Practices
 
-### 1. Use Builder Pattern
+### 1. Use Per-Template Configuration for Production ⭐
+**Recommended approach** for production applications:
+
+```java
+@Configuration
+public class ApiConfig {
+    @PostConstruct
+    public void setupApiConfigurations() {
+        // Configure different APIs with appropriate settings
+        RestTemplateConfig fastConfig = RestTemplateConfig.builder("fast-apis")
+            .connectionTimeoutMs(2000)
+            .readTimeoutMs(5000)
+            .maxRetryAttempts(1)
+            .build();
+        
+        RestTemplateConfig slowConfig = RestTemplateConfig.builder("slow-apis")
+            .connectionTimeoutMs(10000)
+            .readTimeoutMs(120000)
+            .maxRetryAttempts(3)
+            .build();
+        
+        apiService.registerRestTemplateConfig("https://fast-api.com/*", fastConfig);
+        apiService.registerRestTemplateConfig("https://slow-api.com/*", slowConfig);
+    }
+}
+```
+
+### 2. Use Builder Pattern for Requests
 Always use the builder pattern for creating requests:
 
 ```java
@@ -576,7 +793,7 @@ ApiRequest request = ApiRequest.builder()
     .build();
 ```
 
-### 2. Handle Errors Gracefully
+### 3. Handle Errors Gracefully
 Always check for errors and handle them appropriately:
 
 ```java
@@ -592,42 +809,134 @@ if (response.isSuccess()) {
 }
 ```
 
-### 3. Use Appropriate Timeouts
-Set realistic timeouts based on the API's expected response time:
+### 4. Configure Based on API Characteristics
+Match your configuration to the API's behavior:
 
 ```java
-ApiRequest request = ApiRequest.builder()
-    .url("https://slow-api.example.com/data")
-    .timeout(30000)  // 30 seconds for slow APIs
+// Payment APIs - Fast, critical
+RestTemplateConfig paymentConfig = RestTemplateConfig.builder("payments")
+    .connectionTimeoutMs(2000)   // Quick connection
+    .readTimeoutMs(5000)         // Fast response expected
+    .maxRetryAttempts(1)         // Don't retry payments
+    .enableLogging(true)         // Log for auditing
+    .build();
+
+// Batch APIs - Slow, tolerant  
+RestTemplateConfig batchConfig = RestTemplateConfig.builder("batch")
+    .connectionTimeoutMs(10000)
+    .readTimeoutMs(300000)       // 5 minutes for batch operations
+    .maxRetryAttempts(5)         // Higher tolerance
+    .enableLogging(false)        // Reduce log noise
     .build();
 ```
 
-### 4. Leverage Mocking in Tests
+### 5. Monitor Configuration Summary
+Keep track of your active configurations:
+
+```java
+@Scheduled(fixedRate = 300000) // Every 5 minutes
+public void logConfigurationStatus() {
+    Map<String, Object> summary = apiService.getConfigurationSummary();
+    logger.info("Active API configurations: {}", summary.get("customConfigurations"));
+}
+```
+
+### 6. Leverage Mocking in Tests
 Use the mocking service extensively in your tests:
 
 ```java
 @BeforeEach
 void setUp() {
     mockApiService.clearMockResponses();
-    // Setup test-specific mocks
+    apiService.clearAllCustomConfigurations();
+    // Setup test-specific mocks and configurations
 }
+```
+
+### 7. Use Environment-Specific Configurations
+Configure different settings per environment:
+
+```java
+@Profile("production")
+@Configuration
+public class ProductionApiConfig {
+    // Conservative settings for production
+}
+
+@Profile("development") 
+@Configuration
+public class DevelopmentApiConfig {
+    // More aggressive settings for development
+}
+```
+
+## Documentation & Code Quality
+
+The framework features **comprehensive JavaDoc documentation** across all critical components:
+
+### 📚 **Fully Documented Classes**
+
+- **Core Framework**: `ApiFrameworkApplication`, `ApiFrameworkConfiguration`, `ApiProperties`
+- **Service Layer**: `ApiService` with detailed method documentation and usage examples
+- **Model Classes**: `ApiRequest`, `ApiResponse` with builder patterns and field explanations
+- **Configuration**: `RestTemplateConfig`, `RestTemplateFactory` with configuration examples
+- **Interceptors**: `LoggingInterceptor`, `RetryInterceptor` with performance considerations
+- **Client Interfaces**: `ApiClient`, `ApiCallback` with protocol abstraction details
+- **Exception Handling**: `ApiException` with error handling patterns
+
+### 📖 **Documentation Features**
+
+- **Method-level JavaDoc**: Every public method includes purpose, parameters, return values, and usage examples
+- **Class-level Overview**: Comprehensive class descriptions with feature lists and integration patterns
+- **Configuration Examples**: Real-world YAML and Java configuration examples
+- **Performance Notes**: Memory usage, thread safety, and optimization recommendations
+- **Best Practices**: Coding standards and integration patterns
+- **Error Scenarios**: Exception handling and troubleshooting guidance
+
+### 🔍 **Code Examples**
+
+All critical classes include inline code examples:
+
+```java
+/**
+ * Example usage:
+ * <pre>
+ * RestTemplateConfig config = RestTemplateConfig.builder("payment-api")
+ *     .connectionTimeoutMs(2000)
+ *     .readTimeoutMs(5000)
+ *     .maxRetryAttempts(1)
+ *     .build();
+ * 
+ * apiService.registerRestTemplateConfig("https://payment.com/*", config);
+ * </pre>
+ */
 ```
 
 ## Architecture
 
-The framework follows a layered architecture:
+The framework follows a layered architecture with comprehensive documentation:
 
 ```
 ┌─────────────────┐
-│   Service Layer │  (ApiService)
+│   Service Layer │  (ApiService - Fully documented main entry point)
 ├─────────────────┤
-│   Client Layer  │  (RestApiClient, SoapApiClient)
+│   Client Layer  │  (RestApiClient, SoapApiClient - Protocol implementations)
 ├─────────────────┤
-│   Model Layer   │  (ApiRequest, ApiResponse)
+│   Model Layer   │  (ApiRequest, ApiResponse - Data transfer objects)
 ├─────────────────┤
-│  Infrastructure │  (Configuration, Interceptors)
+│ Configuration   │  (RestTemplateConfig, RestTemplateFactory - Java-based config)
+├─────────────────┤
+│  Infrastructure │  (Interceptors, Exception handling, Connection management)
 └─────────────────┘
 ```
+
+### Key Architectural Improvements
+
+- **✅ Startup Optimization**: RestTemplate instances created once during application startup
+- **✅ Request Performance**: Zero RestTemplate creation overhead during API calls
+- **✅ Resource Management**: Automatic connection pool cleanup and lifecycle management
+- **✅ Configuration Flexibility**: Three-tier configuration system (Global → Custom → Pre-created)
+- **✅ Type Safety**: Compile-time validation of all configuration parameters
 
 ## Requirements
 
