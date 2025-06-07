@@ -13,8 +13,6 @@ import org.springframework.test.context.TestPropertySource;
 import com.company.apiframework.mock.MockApiService;
 import com.company.apiframework.model.ApiRequest;
 import com.company.apiframework.model.ApiResponse;
-import com.company.apiframework.service.ApiService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Comprehensive tests for the API Integration Framework
@@ -28,13 +26,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class ApiFrameworkTest {
     
     @Autowired
-    private ApiService apiService;
-    
-    @Autowired
     private MockApiService mockApiService;
-    
-    @Autowired
-    private ObjectMapper objectMapper;
     
     @BeforeEach
     void setUp() {
