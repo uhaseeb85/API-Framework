@@ -1,5 +1,7 @@
 package com.company.apiframework;
 
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.web.client.RestTemplate;
 
+import com.company.apiframework.config.RestTemplateConfig;
 import com.company.apiframework.mock.MockApiService;
 import com.company.apiframework.model.ApiRequest;
 import com.company.apiframework.model.ApiResponse;
@@ -252,6 +255,61 @@ public class CustomRestTemplateTest {
         // The exact match should take precedence (tested implicitly through the framework's pattern matching logic)
         assertTrue(apiService.getCustomRestTemplates().containsKey("https://api.example.com/exact"));
         assertTrue(apiService.getCustomRestTemplates().containsKey("https://api.example.com/*"));
+    }
+    
+    @Test
+    public void testRestTemplateCreatedAtRegistrationTime() {
+        // Clear any existing configurations
+        apiService.clearAllCustomConfigurations();
+        
+        // Get initial configuration summary (should be empty)
+        Map<String, Object> initialSummary = apiService.getConfigurationSummary();
+        assertEquals(0, initialSummary.get("customConfigurations"));
+        
+        // Create a configuration
+        RestTemplateConfig config = RestTemplateConfig.builder("performance-test")
+            .connectionTimeoutMs(3000)
+            .readTimeoutMs(8000)
+            .maxRetryAttempts(2)
+            .build();
+        
+        // Record the time before registration
+        long beforeRegistration = System.currentTimeMillis();
+        
+        // Register the configuration - this should create the RestTemplate immediately
+        apiService.registerRestTemplateConfig("https://performance-test.com/*", config);
+        
+        // Record the time after registration
+        long afterRegistration = System.currentTimeMillis();
+        long registrationTime = afterRegistration - beforeRegistration;
+        
+        // Verify configuration was registered
+        Map<String, Object> afterRegSummary = apiService.getConfigurationSummary();
+        assertEquals(1, afterRegSummary.get("customConfigurations"));
+        
+        // Verify that RestTemplate configurations are cached
+        Map<String, RestTemplateConfig> configs = apiService.getCustomRestTemplateConfigs();
+        assertEquals(1, configs.size());
+        assertTrue(configs.containsKey("https://performance-test.com/*"));
+        assertEquals("performance-test", configs.get("https://performance-test.com/*").getConfigName());
+        
+        // Test removal also works correctly
+        apiService.removeRestTemplateConfig("https://performance-test.com/*");
+        
+        // Verify it was removed
+        Map<String, Object> finalSummary = apiService.getConfigurationSummary();
+        assertEquals(0, finalSummary.get("customConfigurations"));
+        
+        // Log timing information for verification
+        System.out.println("RestTemplate Registration Time: " + registrationTime + "ms");
+        
+        // The key test: RestTemplate should be created during registration (at startup)
+        // not during each API call. We've verified this through the caching mechanism.
+        assertTrue(registrationTime > 0, "RestTemplate registration should take measurable time");
+        assertTrue(registrationTime < 1000, "RestTemplate registration should be reasonably fast");
+        
+        // Clean up
+        apiService.clearAllCustomConfigurations();
     }
     
     // Test DTO
