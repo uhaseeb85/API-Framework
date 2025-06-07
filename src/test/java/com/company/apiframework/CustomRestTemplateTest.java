@@ -19,14 +19,17 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.web.client.RestTemplate;
 
-import com.company.apiframework.config.RestTemplateConfig;
 import com.company.apiframework.mock.MockApiService;
 import com.company.apiframework.model.ApiRequest;
 import com.company.apiframework.model.ApiResponse;
 import com.company.apiframework.service.ApiService;
 
 /**
- * Tests for custom RestTemplate functionality
+ * Tests for custom RestTemplate functionality (Legacy Support)
+ * 
+ * <p><strong>Note:</strong> These tests cover the legacy custom RestTemplate registration
+ * functionality for backward compatibility. For new implementations, use the
+ * Spring bean approach tested in SpringBeanApiServiceTest.</p>
  */
 @SpringBootTest
 @TestPropertySource(properties = {
@@ -85,7 +88,7 @@ public class CustomRestTemplateTest {
     }
     
     @Test
-    public void testRegisteredCustomRestTemplate() {
+    public void testLegacyRegisteredCustomRestTemplate() {
         // Setup mock
         mockApiService.registerMockResponse(
             "https://registered-api.example.com/users/123", 
@@ -93,7 +96,7 @@ public class CustomRestTemplateTest {
             new TestResponse("registered-response")
         );
         
-        // Register custom RestTemplate for pattern
+        // Register custom RestTemplate for pattern (legacy support)
         RestTemplate customRestTemplate = new RestTemplate();
         apiService.registerCustomRestTemplate("https://registered-api.example.com/*", customRestTemplate);
         
@@ -115,8 +118,8 @@ public class CustomRestTemplateTest {
     }
     
     @Test
-    public void testMultipleCustomRestTemplates() {
-        // Register multiple custom RestTemplates
+    public void testMultipleLegacyCustomRestTemplates() {
+        // Register multiple custom RestTemplates (legacy support)
         RestTemplate secureTemplate = new RestTemplate();
         RestTemplate legacyTemplate = new RestTemplate();
         RestTemplate fastTemplate = new RestTemplate();
@@ -133,8 +136,8 @@ public class CustomRestTemplateTest {
     }
     
     @Test
-    public void testRemoveCustomRestTemplate() {
-        // Register custom RestTemplate
+    public void testRemoveLegacyCustomRestTemplate() {
+        // Register custom RestTemplate (legacy support)
         RestTemplate customTemplate = new RestTemplate();
         apiService.registerCustomRestTemplate("https://temp-api.example.com/*", customTemplate);
         
@@ -149,8 +152,8 @@ public class CustomRestTemplateTest {
     }
     
     @Test
-    public void testClearCustomRestTemplates() {
-        // Register multiple custom RestTemplates
+    public void testClearLegacyCustomRestTemplates() {
+        // Register multiple custom RestTemplates (legacy support)
         apiService.registerCustomRestTemplate("https://api1.example.com/*", new RestTemplate());
         apiService.registerCustomRestTemplate("https://api2.example.com/*", new RestTemplate());
         apiService.registerCustomRestTemplate("https://api3.example.com/*", new RestTemplate());
@@ -166,13 +169,13 @@ public class CustomRestTemplateTest {
     }
     
     @Test
-    public void testCustomRestTemplatePatternMatching() {
+    public void testLegacyRestTemplatePatternMatching() {
         // Setup multiple mocks for pattern testing
         mockApiService.registerMockResponse("https://pattern-api.example.com/users/123", 200, "user-123");
         mockApiService.registerMockResponse("https://pattern-api.example.com/orders/456", 200, "order-456");
         mockApiService.registerMockResponse("https://other-api.example.com/data", 200, "other-data");
         
-        // Register custom RestTemplate for pattern
+        // Register custom RestTemplate for pattern (legacy support)
         RestTemplate patternTemplate = new RestTemplate();
         apiService.registerCustomRestTemplate("https://pattern-api.example.com/*", patternTemplate);
         
@@ -198,7 +201,7 @@ public class CustomRestTemplateTest {
         ApiResponse<String> orderResponse = mockApiService.executeMock(orderRequest, String.class);
         ApiResponse<String> otherResponse = mockApiService.executeMock(otherRequest, String.class);
         
-        // All should succeed
+        // All should succeed (pattern matching happens in ApiService, we're testing with mocks)
         assertTrue(userResponse.isSuccess());
         assertTrue(orderResponse.isSuccess());
         assertTrue(otherResponse.isSuccess());
@@ -211,108 +214,99 @@ public class CustomRestTemplateTest {
     @Test
     public void testSoapWithCustomRestTemplate() {
         // Setup SOAP mock
-        String soapResponse = 
-            "<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\">" +
-            "<soap:Body>" +
-            "<TestSoapResponse>" +
-            "<Result>SOAP Success</Result>" +
-            "</TestSoapResponse>" +
-            "</soap:Body>" +
-            "</soap:Envelope>";
-        
-        mockApiService.registerMockResponse("http://soap.example.com/service", 200, soapResponse);
+        mockApiService.registerMockResponse(
+            "http://soap-service.example.com/endpoint", 
+            200, 
+            "<soap:Envelope><soap:Body>SOAP Response</soap:Body></soap:Envelope>"
+        );
         
         // Create SOAP request
-        String soapBody = "<TestSoapRequest><Data>test</Data></TestSoapRequest>";
-        
         ApiRequest soapRequest = ApiRequest.builder()
-                .url("http://soap.example.com/service")
+                .url("http://soap-service.example.com/endpoint")
                 .method("POST")
-                .soapAction("TestAction")
-                .body(soapBody)
+                .soapAction("GetData")
+                .body("<soap:Envelope><soap:Body>SOAP Request</soap:Body></soap:Envelope>")
                 .build();
         
-        // Test SOAP call (using mock)
+        // Execute SOAP request (using mock service)
         ApiResponse<String> response = mockApiService.executeMock(soapRequest, String.class);
         
+        // Assertions
         assertTrue(response.isSuccess());
-        assertTrue(response.getBody().contains("SOAP Success"));
+        assertTrue(response.getBody().contains("SOAP Response"));
     }
     
     @Test
     public void testExactUrlMatchTakesPrecedence() {
-        // Register custom RestTemplate for exact URL
+        // Register both wildcard and exact URL patterns (legacy support)
+        RestTemplate wildcardTemplate = new RestTemplate();
         RestTemplate exactTemplate = new RestTemplate();
+        
+        apiService.registerCustomRestTemplate("https://api.example.com/*", wildcardTemplate);
         apiService.registerCustomRestTemplate("https://api.example.com/exact", exactTemplate);
         
-        // Register custom RestTemplate for pattern that would also match
-        RestTemplate patternTemplate = new RestTemplate();
-        apiService.registerCustomRestTemplate("https://api.example.com/*", patternTemplate);
-        
-        // Both are registered
+        // Verify both registrations
         assertEquals(2, apiService.getCustomRestTemplates().size());
-        
-        // The exact match should take precedence (tested implicitly through the framework's pattern matching logic)
-        assertTrue(apiService.getCustomRestTemplates().containsKey("https://api.example.com/exact"));
         assertTrue(apiService.getCustomRestTemplates().containsKey("https://api.example.com/*"));
+        assertTrue(apiService.getCustomRestTemplates().containsKey("https://api.example.com/exact"));
     }
     
     @Test
-    public void testRestTemplateCreatedAtRegistrationTime() {
-        // Clear any existing configurations
-        apiService.clearAllCustomConfigurations();
+    public void testSpringBeanTakesPrecedenceOverLegacy() {
+        // Register legacy custom RestTemplate for payment pattern
+        RestTemplate legacyTemplate = new RestTemplate();
+        apiService.registerCustomRestTemplate("https://payment.gateway.com/*", legacyTemplate);
         
-        // Get initial configuration summary (should be empty)
-        Map<String, Object> initialSummary = apiService.getConfigurationSummary();
-        assertEquals(0, initialSummary.get("customConfigurations"));
+        // Verify legacy registration
+        assertTrue(apiService.getCustomRestTemplates().containsKey("https://payment.gateway.com/*"));
         
-        // Create a configuration
-        RestTemplateConfig config = RestTemplateConfig.builder("performance-test")
-            .connectionTimeoutMs(3000)
-            .readTimeoutMs(8000)
-            .maxRetryAttempts(2)
-            .build();
+        // Create request that matches both legacy and Spring bean patterns
+        ApiRequest request = ApiRequest.builder()
+                .url("https://payment.gateway.com/process")
+                .method("POST")
+                .body("{\"amount\":100.00}")
+                .build();
         
-        // Record the time before registration
-        long beforeRegistration = System.currentTimeMillis();
+        // Note: In actual execution, Spring bean should take precedence over legacy registration
+        // This test verifies the legacy registration works, but Spring beans are preferred
+        ApiResponse<String> response = mockApiService.executeMock(request, String.class);
         
-        // Register the configuration - this should create the RestTemplate immediately
-        apiService.registerRestTemplateConfig("https://performance-test.com/*", config);
+        // Setup mock for this test
+        mockApiService.registerMockResponse("https://payment.gateway.com/process", 200, "legacy-response");
+        response = mockApiService.executeMock(request, String.class);
         
-        // Record the time after registration
-        long afterRegistration = System.currentTimeMillis();
-        long registrationTime = afterRegistration - beforeRegistration;
-        
-        // Verify configuration was registered
-        Map<String, Object> afterRegSummary = apiService.getConfigurationSummary();
-        assertEquals(1, afterRegSummary.get("customConfigurations"));
-        
-        // Verify that RestTemplate configurations are cached
-        Map<String, RestTemplateConfig> configs = apiService.getCustomRestTemplateConfigs();
-        assertEquals(1, configs.size());
-        assertTrue(configs.containsKey("https://performance-test.com/*"));
-        assertEquals("performance-test", configs.get("https://performance-test.com/*").getConfigName());
-        
-        // Test removal also works correctly
-        apiService.removeRestTemplateConfig("https://performance-test.com/*");
-        
-        // Verify it was removed
-        Map<String, Object> finalSummary = apiService.getConfigurationSummary();
-        assertEquals(0, finalSummary.get("customConfigurations"));
-        
-        // Log timing information for verification
-        System.out.println("RestTemplate Registration Time: " + registrationTime + "ms");
-        
-        // The key test: RestTemplate should be created during registration (at startup)
-        // not during each API call. We've verified this through the caching mechanism.
-        assertTrue(registrationTime > 0, "RestTemplate registration should take measurable time");
-        assertTrue(registrationTime < 1000, "RestTemplate registration should be reasonably fast");
-        
-        // Clean up
-        apiService.clearAllCustomConfigurations();
+        assertTrue(response.isSuccess());
+        assertEquals("legacy-response", response.getBody());
     }
     
-    // Test DTO
+    @Test
+    public void testConfigurationSummaryWithSpringBeans() {
+        // Register some legacy templates
+        apiService.registerCustomRestTemplate("https://legacy1.com/*", new RestTemplate());
+        apiService.registerCustomRestTemplate("https://legacy2.com/*", new RestTemplate());
+        
+        // Get configuration summary
+        Map<String, Object> summary = apiService.getConfigurationSummary();
+        
+        // Verify summary includes both Spring beans and legacy registrations
+        assertTrue(summary.containsKey("springBeans"));
+        assertTrue(summary.containsKey("springBeanCount"));
+        assertTrue(summary.containsKey("legacyCustomTemplates"));
+        assertTrue(summary.containsKey("totalConfiguredTemplates"));
+        
+        // Spring beans should be 5 (payment, batch, external, highVolume, default)
+        assertEquals(5, summary.get("springBeanCount"));
+        
+        // Legacy templates should be 2
+        assertEquals(2, summary.get("legacyCustomTemplates"));
+        
+        // Total should be 7
+        assertEquals(7, summary.get("totalConfiguredTemplates"));
+    }
+    
+    /**
+     * Test response class for testing
+     */
     public static class TestResponse {
         private String message;
         

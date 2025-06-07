@@ -6,7 +6,10 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
 
 import com.company.apiframework.client.ApiCallback;
@@ -14,104 +17,62 @@ import com.company.apiframework.client.ApiClient;
 import com.company.apiframework.client.rest.RestClientFactory;
 import com.company.apiframework.client.soap.SoapClientFactory;
 import com.company.apiframework.config.ApiProperties;
-import com.company.apiframework.config.RestTemplateConfig;
-import com.company.apiframework.config.RestTemplateFactory;
+import com.company.apiframework.config.RestTemplateBeanConfiguration;
 import com.company.apiframework.model.ApiRequest;
 import com.company.apiframework.model.ApiResponse;
 
 /**
- * Main service for API integration providing a unified interface for REST and SOAP calls.
+ * Main API Integration Service - Refactored for Spring Bean Approach
  * 
- * <p>This service acts as the primary entry point for all API interactions in the framework.
- * It provides a consistent, protocol-agnostic interface that automatically handles the
- * complexities of different API types while offering advanced features for enterprise use.</p>
+ * <p>This service provides a unified interface for making REST and SOAP API calls
+ * with automatic RestTemplate bean selection based on URL patterns. The service
+ * leverages Spring's dependency injection and bean management for optimal performance
+ * and maintainability.</p>
  * 
- * <p><strong>Core Features:</strong></p>
+ * <p><strong>Key Features:</strong></p>
  * <ul>
- *   <li><strong>Protocol Abstraction:</strong> Unified interface for REST and SOAP APIs</li>
- *   <li><strong>Automatic Detection:</strong> Smart protocol detection based on request characteristics</li>
- *   <li><strong>Custom RestTemplates:</strong> Per-endpoint RestTemplate configuration</li>
- *   <li><strong>Asynchronous Support:</strong> Non-blocking API calls with callbacks</li>
- *   <li><strong>Type Safety:</strong> Generic response types with automatic deserialization</li>
- *   <li><strong>Builder Pattern:</strong> Fluent API for request construction</li>
+ *   <li>Automatic protocol detection (REST vs SOAP)</li>
+ *   <li>Spring bean-based RestTemplate management</li>
+ *   <li>URL pattern to RestTemplate bean mapping</li>
+ *   <li>Synchronous and asynchronous API execution</li>
+ *   <li>Comprehensive error handling and logging</li>
+ *   <li>Health monitoring and configuration inspection</li>
  * </ul>
  * 
- * <p><strong>Usage Patterns:</strong></p>
+ * <p><strong>RestTemplate Selection Priority:</strong></p>
+ * <ol>
+ *   <li>Explicit RestTemplate parameter (method-level override)</li>
+ *   <li>URL pattern matched Spring bean (configured in RestTemplateBeanConfiguration)</li>
+ *   <li>Default RestTemplate bean (fallback)</li>
+ * </ol>
+ * 
+ * <p><strong>Usage Examples:</strong></p>
  * <pre>
- * // Simple REST call
- * ApiResponse&lt;User&gt; response = apiService.executeRest(
- *     ApiRequest.builder()
- *         .url("https://api.example.com/users/123")
- *         .method("GET")
- *         .header("Authorization", "Bearer " + token)
- *         .build(),
- *     User.class
- * );
- * 
- * // SOAP call with custom RestTemplate
- * RestTemplate customTemplate = createCustomRestTemplate();
- * ApiResponse&lt;String&gt; soapResponse = apiService.executeSoap(soapRequest, customTemplate);
- * 
- * // Automatic protocol detection
- * ApiResponse&lt;Object&gt; autoResponse = apiService.executeAuto(request, Object.class);
- * 
- * // Asynchronous execution
- * apiService.executeAsync(request, User.class, new ApiCallback&lt;User&gt;() {
- *     public void onSuccess(ApiResponse&lt;User&gt; response) {
- *         // Handle success
- *     }
- * });
- * </pre>
- * 
- * <p><strong>Custom RestTemplate Support:</strong></p>
- * <p>The service supports both pre-created RestTemplate instances and configuration-based
- * RestTemplate creation for specific URL patterns, enabling fine-grained control over
- * HTTP client behavior per API endpoint:</p>
- * <pre>
- * // Method 1: Register pre-created RestTemplate
- * RestTemplate customTemplate = new RestTemplate();
- * // Configure custom timeouts, interceptors, etc.
- * apiService.registerCustomRestTemplate("https://special-api.com/*", customTemplate);
- * 
- * // Method 2: Register configuration (recommended)
- * RestTemplateConfig fastConfig = RestTemplateConfig.builder("payment-api")
- *     .connectionTimeoutMs(2000)
- *     .readTimeoutMs(5000)
- *     .maxRetryAttempts(1)
+ * // Simple REST call - automatic bean selection
+ * ApiRequest request = ApiRequest.builder()
+ *     .url("https://payment.gateway.com/process")  // Uses paymentApiRestTemplate
+ *     .method("POST")
+ *     .body("{\"amount\":100.00}")
  *     .build();
- * apiService.registerRestTemplateConfig("https://payment-api.com/*", fastConfig);
+ * ApiResponse&lt;String&gt; response = apiService.executeRest(request, String.class);
  * 
- * // Method 3: Inline configuration
- * apiService.registerRestTemplateConfig("https://batch-api.com/*",
- *     RestTemplateConfig.builder("batch-api")
- *         .connectionTimeoutMs(10000)
- *         .readTimeoutMs(120000)
- *         .maxRetryAttempts(5)
- *         .build());
+ * // SOAP call - automatic detection
+ * ApiRequest soapRequest = ApiRequest.builder()
+ *     .url("http://soap.service.com/endpoint")
+ *     .soapAction("GetData")
+ *     .body("&lt;soap:Envelope&gt;...&lt;/soap:Envelope&gt;")
+ *     .build();
+ * ApiResponse&lt;String&gt; soapResponse = apiService.executeSoap(soapRequest, String.class);
  * 
- * // All calls to matching URLs will use the custom configuration
- * ApiResponse&lt;Data&gt; response = apiService.executeRest(request, Data.class);
+ * // Auto-detection based on request characteristics
+ * ApiResponse&lt;DataDto&gt; autoResponse = apiService.executeAuto(request, DataDto.class);
  * </pre>
- * 
- * <p><strong>Protocol Detection Logic:</strong></p>
- * <p>The service automatically detects the appropriate protocol based on:</p>
- * <ul>
- *   <li>Presence of SOAP Action header</li>
- *   <li>Content-Type headers (text/xml, application/soap+xml)</li>
- *   <li>Request body content (SOAP envelope detection)</li>
- *   <li>Defaults to REST if no SOAP indicators found</li>
- * </ul>
- * 
- * <p><strong>Thread Safety:</strong> This service is thread-safe and can be used
- * concurrently from multiple threads. Custom RestTemplate registrations are
- * handled in a thread-safe manner.</p>
  * 
  * @author API Framework Team
- * @version 1.0
- * @since 1.0
- * @see ApiRequest
- * @see ApiResponse
- * @see ApiCallback
+ * @version 1.1.0
+ * @since 1.0.0
+ * @see RestTemplateBeanConfiguration
+ * @see SpringBeanApiService
  */
 @Service
 public class ApiService {
@@ -128,83 +89,153 @@ public class ApiService {
     private ApiProperties apiProperties;
     
     @Autowired
-    private RestTemplateFactory restTemplateFactory;
+    private ApplicationContext applicationContext;
     
-    // Registry for custom RestTemplates per API endpoint
-    private final Map<String, RestTemplate> customRestTemplates = new HashMap<>();
+    @Autowired
+    private RestTemplateBeanConfiguration restTemplateBeanConfiguration;
     
-    // Registry for custom RestTemplate configurations per URL pattern
-    private final Map<String, RestTemplateConfig> customRestTemplateConfigs = new HashMap<>();
+    // Inject Spring bean RestTemplates
+    @Autowired
+    @Qualifier("paymentApiRestTemplate")
+    private RestTemplate paymentApiRestTemplate;
     
-    // Cache for RestTemplates created from configurations (to avoid recreating on each request)
-    private final Map<String, RestTemplate> configBasedRestTemplates = new HashMap<>();
+    @Autowired
+    @Qualifier("batchApiRestTemplate")
+    private RestTemplate batchApiRestTemplate;
+    
+    @Autowired
+    @Qualifier("externalApiRestTemplate")
+    private RestTemplate externalApiRestTemplate;
+    
+    @Autowired
+    @Qualifier("highVolumeApiRestTemplate")
+    private RestTemplate highVolumeApiRestTemplate;
+    
+    @Autowired
+    private RestTemplate defaultRestTemplate; // Primary bean
+    
+    // Legacy support: Registry for manually registered RestTemplates
+    private final Map<String, RestTemplate> legacyCustomRestTemplates = new HashMap<>();
     
     /**
-     * Execute REST API call
+     * Execute REST API call with automatic RestTemplate bean selection.
+     * 
+     * <p>This method automatically selects the most appropriate RestTemplate bean
+     * based on URL pattern matching configured in RestTemplateBeanConfiguration.</p>
+     * 
+     * @param <T> Response type
+     * @param request API request configuration
+     * @param responseType Expected response type class
+     * @return API response with success/error information
      */
     public <T> ApiResponse<T> executeRest(ApiRequest request, Class<T> responseType) {
         logger.debug("Executing REST API call to: {}", request.getUrl());
-        ApiClient client = getRestClient(request.getUrl());
+        RestTemplate restTemplate = selectRestTemplateForUrl(request.getUrl());
+        ApiClient client = restClientFactory.createClient(restTemplate);
         return client.execute(request, responseType);
     }
     
     /**
-     * Execute REST API call with custom RestTemplate
+     * Execute REST API call with explicit RestTemplate.
+     * 
+     * <p>This method bypasses automatic RestTemplate selection and uses the
+     * provided RestTemplate directly. Useful for special cases or testing.</p>
+     * 
+     * @param <T> Response type
+     * @param request API request configuration
+     * @param responseType Expected response type class
+     * @param customRestTemplate Specific RestTemplate to use
+     * @return API response with success/error information
      */
     public <T> ApiResponse<T> executeRest(ApiRequest request, Class<T> responseType, RestTemplate customRestTemplate) {
-        logger.debug("Executing REST API call to: {} with custom RestTemplate", request.getUrl());
+        logger.debug("Executing REST API call to: {} with explicit RestTemplate", request.getUrl());
         ApiClient client = restClientFactory.createClient(customRestTemplate);
         return client.execute(request, responseType);
     }
     
     /**
-     * Execute REST API call with string response
+     * Execute REST API call with automatic bean selection and String response.
+     * 
+     * @param request API request configuration
+     * @return API response with String body
      */
     public ApiResponse<String> executeRest(ApiRequest request) {
         return executeRest(request, String.class);
     }
     
     /**
-     * Execute REST API call with custom RestTemplate and string response
+     * Execute REST API call with explicit RestTemplate and String response.
+     * 
+     * @param request API request configuration
+     * @param customRestTemplate Specific RestTemplate to use
+     * @return API response with String body
      */
     public ApiResponse<String> executeRest(ApiRequest request, RestTemplate customRestTemplate) {
         return executeRest(request, String.class, customRestTemplate);
     }
     
     /**
-     * Execute SOAP API call
+     * Execute SOAP API call with automatic RestTemplate bean selection.
+     * 
+     * @param <T> Response type
+     * @param request SOAP API request configuration
+     * @param responseType Expected response type class
+     * @return API response with success/error information
      */
     public <T> ApiResponse<T> executeSoap(ApiRequest request, Class<T> responseType) {
         logger.debug("Executing SOAP API call to: {}", request.getUrl());
-        ApiClient client = getSoapClient(request.getUrl());
+        RestTemplate restTemplate = selectRestTemplateForUrl(request.getUrl());
+        ApiClient client = soapClientFactory.createClient(restTemplate);
         return client.execute(request, responseType);
     }
     
     /**
-     * Execute SOAP API call with custom RestTemplate
+     * Execute SOAP API call with explicit RestTemplate.
+     * 
+     * @param <T> Response type
+     * @param request SOAP API request configuration
+     * @param responseType Expected response type class
+     * @param customRestTemplate Specific RestTemplate to use
+     * @return API response with success/error information
      */
     public <T> ApiResponse<T> executeSoap(ApiRequest request, Class<T> responseType, RestTemplate customRestTemplate) {
-        logger.debug("Executing SOAP API call to: {} with custom RestTemplate", request.getUrl());
+        logger.debug("Executing SOAP API call to: {} with explicit RestTemplate", request.getUrl());
         ApiClient client = soapClientFactory.createClient(customRestTemplate);
         return client.execute(request, responseType);
     }
     
     /**
-     * Execute SOAP API call with string response
+     * Execute SOAP API call with automatic bean selection and String response.
+     * 
+     * @param request SOAP API request configuration
+     * @return API response with String body
      */
     public ApiResponse<String> executeSoap(ApiRequest request) {
         return executeSoap(request, String.class);
     }
     
     /**
-     * Execute SOAP API call with custom RestTemplate and string response
+     * Execute SOAP API call with explicit RestTemplate and String response.
+     * 
+     * @param request SOAP API request configuration
+     * @param customRestTemplate Specific RestTemplate to use
+     * @return API response with String body
      */
     public ApiResponse<String> executeSoap(ApiRequest request, RestTemplate customRestTemplate) {
         return executeSoap(request, String.class, customRestTemplate);
     }
     
     /**
-     * Execute API call based on protocol detection
+     * Execute API call with automatic protocol detection and RestTemplate selection.
+     * 
+     * <p>This method automatically determines whether to use REST or SOAP based on
+     * request characteristics (presence of soapAction, content type, etc.) and
+     * selects the appropriate RestTemplate bean based on URL patterns.</p>
+     * 
+     * @param <T> Response type
+     * @param request API request configuration
+     * @param responseType Expected response type class
+     * @return API response with success/error information
      */
     public <T> ApiResponse<T> executeAuto(ApiRequest request, Class<T> responseType) {
         String protocol = detectProtocol(request);
@@ -217,7 +248,13 @@ public class ApiService {
     }
     
     /**
-     * Execute API call based on protocol detection with custom RestTemplate
+     * Execute API call with automatic protocol detection and explicit RestTemplate.
+     * 
+     * @param <T> Response type
+     * @param request API request configuration
+     * @param responseType Expected response type class
+     * @param customRestTemplate Specific RestTemplate to use
+     * @return API response with success/error information
      */
     public <T> ApiResponse<T> executeAuto(ApiRequest request, Class<T> responseType, RestTemplate customRestTemplate) {
         String protocol = detectProtocol(request);
@@ -230,23 +267,35 @@ public class ApiService {
     }
     
     /**
-     * Execute API call asynchronously
+     * Execute API call asynchronously with automatic protocol and RestTemplate selection.
+     * 
+     * @param <T> Response type
+     * @param request API request configuration
+     * @param responseType Expected response type class
+     * @param callback Callback to handle success/error responses
      */
     public <T> void executeAsync(ApiRequest request, Class<T> responseType, ApiCallback<T> callback) {
         String protocol = detectProtocol(request);
+        RestTemplate restTemplate = selectRestTemplateForUrl(request.getUrl());
         ApiClient client;
         
         if ("SOAP".equalsIgnoreCase(protocol)) {
-            client = getSoapClient(request.getUrl());
+            client = soapClientFactory.createClient(restTemplate);
         } else {
-            client = getRestClient(request.getUrl());
+            client = restClientFactory.createClient(restTemplate);
         }
         
         client.executeAsync(request, responseType, callback);
     }
     
     /**
-     * Execute API call asynchronously with custom RestTemplate
+     * Execute API call asynchronously with explicit RestTemplate.
+     * 
+     * @param <T> Response type
+     * @param request API request configuration
+     * @param responseType Expected response type class
+     * @param callback Callback to handle success/error responses
+     * @param customRestTemplate Specific RestTemplate to use
      */
     public <T> void executeAsync(ApiRequest request, Class<T> responseType, ApiCallback<T> callback, RestTemplate customRestTemplate) {
         String protocol = detectProtocol(request);
@@ -262,346 +311,231 @@ public class ApiService {
     }
     
     /**
-     * Register a custom RestTemplate for a specific API endpoint pattern
+     * Register a custom RestTemplate for a specific URL pattern (Legacy Support).
+     * 
+     * <p><strong>Note:</strong> This method is provided for backward compatibility.
+     * For new implementations, prefer using Spring bean configuration in
+     * RestTemplateBeanConfiguration class.</p>
      * 
      * @param urlPattern URL pattern (supports wildcards like "https://api.example.com/*")
      * @param restTemplate Custom RestTemplate to use for this pattern
      */
     public void registerCustomRestTemplate(String urlPattern, RestTemplate restTemplate) {
-        customRestTemplates.put(urlPattern, restTemplate);
-        logger.info("Registered custom RestTemplate for URL pattern: {}", urlPattern);
+        legacyCustomRestTemplates.put(urlPattern, restTemplate);
+        logger.info("Registered legacy custom RestTemplate for URL pattern: {}", urlPattern);
     }
     
     /**
-     * Register a custom RestTemplate configuration for a specific API endpoint pattern.
+     * Remove custom RestTemplate registration (Legacy Support).
      * 
-     * <p>This method creates a RestTemplate immediately using the provided configuration
-     * and caches it for reuse. This ensures optimal performance by avoiding RestTemplate
-     * creation overhead on each API request.</p>
-     * 
-     * <p><strong>Usage Examples:</strong></p>
-     * <pre>
-     * // Register configuration for fast APIs
-     * RestTemplateConfig fastConfig = RestTemplateConfig.builder("payment-api")
-     *     .connectionTimeoutMs(2000)
-     *     .readTimeoutMs(5000)
-     *     .maxRetryAttempts(1)
-     *     .build();
-     * apiService.registerRestTemplateConfig("https://payment-api.com/*", fastConfig);
-     * 
-     * // Register configuration for slow batch APIs
-     * RestTemplateConfig batchConfig = RestTemplateConfig.builder("batch-api")
-     *     .connectionTimeoutMs(10000)
-     *     .readTimeoutMs(120000)
-     *     .maxRetryAttempts(5)
-     *     .build();
-     * apiService.registerRestTemplateConfig("https://batch-api.com/*", batchConfig);
-     * </pre>
-     * 
-     * @param urlPattern URL pattern (supports wildcards like "https://api.example.com/*")
-     * @param config Custom RestTemplate configuration for this pattern
-     */
-    public void registerRestTemplateConfig(String urlPattern, RestTemplateConfig config) {
-        // Validate configuration before creating RestTemplate
-        if (restTemplateFactory.validateConfiguration(config)) {
-            // Create RestTemplate immediately and cache it
-            RestTemplate restTemplate = restTemplateFactory.createRestTemplate(config);
-            configBasedRestTemplates.put(urlPattern, restTemplate);
-            customRestTemplateConfigs.put(urlPattern, config);
-            
-            logger.info("Created and cached RestTemplate with configuration '{}' for URL pattern: {}", 
-                       config.getConfigName(), urlPattern);
-        } else {
-            logger.error("Invalid configuration '{}' for URL pattern: {}", 
-                        config.getConfigName(), urlPattern);
-            throw new IllegalArgumentException("Invalid RestTemplate configuration: " + config.getConfigName());
-        }
-    }
-    
-    /**
-     * Register a RestTemplate configuration using a fluent builder approach.
-     * 
-     * <p>This is a convenience method that allows inline configuration creation:</p>
-     * <pre>
-     * apiService.registerRestTemplateConfig("https://api.example.com/*", 
-     *     RestTemplateConfig.builder("example-api")
-     *         .connectionTimeoutMs(3000)
-     *         .readTimeoutMs(15000)
-     *         .maxRetryAttempts(2)
-     *         .build());
-     * </pre>
-     * 
-     * @param urlPattern URL pattern (supports wildcards)
-     * @param configBuilder Builder for creating the configuration
-     */
-    public void registerRestTemplateConfig(String urlPattern, RestTemplateConfig.Builder configBuilder) {
-        registerRestTemplateConfig(urlPattern, configBuilder.build());
-    }
-    
-    /**
-     * Remove custom RestTemplate for a URL pattern
+     * @param urlPattern URL pattern to remove
      */
     public void removeCustomRestTemplate(String urlPattern) {
-        customRestTemplates.remove(urlPattern);
-        logger.info("Removed custom RestTemplate for URL pattern: {}", urlPattern);
-    }
-    
-    /**
-     * Remove custom RestTemplate configuration for a URL pattern.
-     * 
-     * <p>This method removes both the configuration and the cached RestTemplate
-     * instance to free up resources.</p>
-     */
-    public void removeRestTemplateConfig(String urlPattern) {
-        RestTemplateConfig removedConfig = customRestTemplateConfigs.remove(urlPattern);
-        RestTemplate removedRestTemplate = configBasedRestTemplates.remove(urlPattern);
-        
-        if (removedConfig != null) {
-            logger.info("Removed RestTemplate configuration '{}' and cached instance for URL pattern: {}", 
-                       removedConfig.getConfigName(), urlPattern);
-            
-            // Cleanup the RestTemplate's connection pool if possible
-            if (removedRestTemplate != null) {
-                cleanupRestTemplate(removedRestTemplate);
-            }
+        RestTemplate removed = legacyCustomRestTemplates.remove(urlPattern);
+        if (removed != null) {
+            logger.info("Removed legacy custom RestTemplate for URL pattern: {}", urlPattern);
         }
     }
     
     /**
-     * Clear all custom RestTemplate registrations
+     * Clear all legacy custom RestTemplate registrations.
      */
     public void clearCustomRestTemplates() {
-        customRestTemplates.clear();
-        logger.info("Cleared all custom RestTemplate registrations");
+        legacyCustomRestTemplates.clear();
+        logger.info("Cleared all legacy custom RestTemplate registrations");
     }
     
     /**
-     * Clear all custom RestTemplate configurations
-     */
-    public void clearRestTemplateConfigs() {
-        // Cleanup cached RestTemplates first
-        for (RestTemplate restTemplate : configBasedRestTemplates.values()) {
-            cleanupRestTemplate(restTemplate);
-        }
-        
-        customRestTemplateConfigs.clear();
-        configBasedRestTemplates.clear();
-        logger.info("Cleared all custom RestTemplate configurations and cached instances");
-    }
-    
-    /**
-     * Clear both custom RestTemplates and configurations
-     */
-    public void clearAllCustomConfigurations() {
-        clearCustomRestTemplates();
-        clearRestTemplateConfigs();
-        logger.info("Cleared all custom RestTemplate registrations and configurations");
-    }
-    
-    /**
-     * Helper method to cleanup RestTemplate resources
-     */
-    private void cleanupRestTemplate(RestTemplate restTemplate) {
-        try {
-            if (restTemplate.getRequestFactory() instanceof org.springframework.http.client.HttpComponentsClientHttpRequestFactory) {
-                org.springframework.http.client.HttpComponentsClientHttpRequestFactory factory = 
-                    (org.springframework.http.client.HttpComponentsClientHttpRequestFactory) restTemplate.getRequestFactory();
-                if (factory.getHttpClient() instanceof org.apache.http.impl.client.CloseableHttpClient) {
-                    ((org.apache.http.impl.client.CloseableHttpClient) factory.getHttpClient()).close();
-                }
-            }
-        } catch (Exception e) {
-            logger.warn("Failed to cleanup RestTemplate resources: {}", e.getMessage());
-        }
-    }
-    
-    /**
-     * Get registered custom RestTemplate patterns
+     * Get all legacy custom RestTemplate registrations.
+     * 
+     * @return Map of URL patterns to RestTemplate instances
      */
     public Map<String, RestTemplate> getCustomRestTemplates() {
-        return new HashMap<>(customRestTemplates);
+        return new HashMap<>(legacyCustomRestTemplates);
     }
     
     /**
-     * Get registered custom RestTemplate configurations
-     */
-    public Map<String, RestTemplateConfig> getCustomRestTemplateConfigs() {
-        return new HashMap<>(customRestTemplateConfigs);
-    }
-    
-    /**
-     * Get summary of all custom configurations
+     * Get comprehensive configuration summary including Spring beans and legacy registrations.
+     * 
+     * @return Configuration summary with bean information and URL pattern mappings
      */
     public Map<String, Object> getConfigurationSummary() {
         Map<String, Object> summary = new HashMap<>();
-        summary.put("customRestTemplates", customRestTemplates.size());
-        summary.put("customConfigurations", customRestTemplateConfigs.size());
         
-        Map<String, String> configDetails = new HashMap<>();
-        for (Map.Entry<String, RestTemplateConfig> entry : customRestTemplateConfigs.entrySet()) {
-            configDetails.put(entry.getKey(), entry.getValue().getConfigName());
-        }
-        summary.put("configurationDetails", configDetails);
+        // Spring bean information
+        Map<String, String> springBeans = Map.of(
+            "paymentApiRestTemplate", "Optimized for payment processing",
+            "batchApiRestTemplate", "Optimized for batch operations",
+            "externalApiRestTemplate", "Optimized for external partners", 
+            "highVolumeApiRestTemplate", "Optimized for high-volume APIs",
+            "defaultRestTemplate", "Default configuration"
+        );
+        
+        summary.put("springBeans", springBeans);
+        summary.put("springBeanCount", springBeans.size());
+        summary.put("urlPatternMappings", restTemplateBeanConfiguration.getUrlPatternMappings());
+        summary.put("legacyCustomTemplates", legacyCustomRestTemplates.size());
+        summary.put("totalConfiguredTemplates", springBeans.size() + legacyCustomRestTemplates.size());
         
         return summary;
     }
     
     /**
-     * Create a new REST request builder
+     * Create a new REST request builder.
+     * 
+     * @return ApiRequest.Builder configured for REST
      */
     public ApiRequest.Builder restRequest() {
         return ApiRequest.builder().method("GET");
     }
     
     /**
-     * Create a new SOAP request builder
+     * Create a new SOAP request builder.
+     * 
+     * @return ApiRequest.Builder configured for SOAP
      */
     public ApiRequest.Builder soapRequest() {
         return ApiRequest.builder().method("POST");
     }
     
     /**
-     * Get REST client, checking for custom RestTemplate and configurations
+     * Check if the API service is healthy and operational.
+     * 
+     * @return true if service is healthy
      */
-    private ApiClient getRestClient(String url) {
-        // First check for pre-created custom RestTemplate
-        RestTemplate customRestTemplate = findCustomRestTemplate(url);
-        if (customRestTemplate != null) {
-            logger.debug("Using pre-created custom RestTemplate for URL: {}", url);
-            return restClientFactory.createClient(customRestTemplate);
+    public boolean isHealthy() {
+        try {
+            // Verify Spring beans are available
+            return defaultRestTemplate != null && 
+                   paymentApiRestTemplate != null &&
+                   batchApiRestTemplate != null &&
+                   externalApiRestTemplate != null &&
+                   highVolumeApiRestTemplate != null;
+        } catch (Exception e) {
+            logger.error("Health check failed: {}", e.getMessage());
+            return false;
         }
-        
-        // Then check for cached RestTemplate from configuration
-        RestTemplate cachedRestTemplate = findCachedRestTemplate(url);
-        if (cachedRestTemplate != null) {
-            logger.debug("Using cached RestTemplate for URL: {}", url);
-            return restClientFactory.createClient(cachedRestTemplate);
-        }
-        
-        // Use default configuration
-        return restClientFactory.createClient();
     }
     
     /**
-     * Get SOAP client, checking for custom RestTemplate and configurations
+     * Get current API framework configuration.
+     * 
+     * @return Current ApiProperties configuration
      */
-    private ApiClient getSoapClient(String url) {
-        // First check for pre-created custom RestTemplate
-        RestTemplate customRestTemplate = findCustomRestTemplate(url);
-        if (customRestTemplate != null) {
-            logger.debug("Using pre-created custom RestTemplate for SOAP URL: {}", url);
-            return soapClientFactory.createClient(customRestTemplate);
-        }
-        
-        // Then check for cached RestTemplate from configuration
-        RestTemplate cachedRestTemplate = findCachedRestTemplate(url);
-        if (cachedRestTemplate != null) {
-            logger.debug("Using cached RestTemplate for SOAP URL: {}", url);
-            return soapClientFactory.createClient(cachedRestTemplate);
-        }
-        
-        // Use default configuration
-        return soapClientFactory.createClient();
+    public ApiProperties getConfiguration() {
+        return apiProperties;
     }
     
     /**
-     * Find cached RestTemplate for URL based on registered configuration patterns
+     * Select the most appropriate RestTemplate for the given URL.
+     * 
+     * <p>Selection priority:</p>
+     * <ol>
+     *   <li>Legacy custom RestTemplate (backward compatibility)</li>
+     *   <li>URL pattern matched Spring bean</li>
+     *   <li>Default RestTemplate bean</li>
+     * </ol>
+     * 
+     * @param url Request URL
+     * @return Best matching RestTemplate
      */
-    private RestTemplate findCachedRestTemplate(String url) {
-        // Exact match first
-        if (configBasedRestTemplates.containsKey(url)) {
-            return configBasedRestTemplates.get(url);
+    private RestTemplate selectRestTemplateForUrl(String url) {
+        if (!StringUtils.hasText(url)) {
+            return defaultRestTemplate;
         }
         
-        // Pattern matching
-        for (Map.Entry<String, RestTemplate> entry : configBasedRestTemplates.entrySet()) {
+        // 1. Check legacy custom RestTemplates first (backward compatibility)
+        RestTemplate legacyTemplate = findLegacyRestTemplate(url);
+        if (legacyTemplate != null) {
+            logger.debug("Using legacy custom RestTemplate for URL: {}", url);
+            return legacyTemplate;
+        }
+        
+        // 2. Check Spring bean URL pattern mappings
+        Map<String, String> urlPatternMappings = restTemplateBeanConfiguration.getUrlPatternMappings();
+        for (Map.Entry<String, String> entry : urlPatternMappings.entrySet()) {
             String pattern = entry.getKey();
-            if (url.matches(pattern.replace("*", ".*"))) {
-                return entry.getValue();
+            String beanName = entry.getValue();
+            
+            if (matchesPattern(url, pattern)) {
+                try {
+                    RestTemplate springBean = applicationContext.getBean(beanName, RestTemplate.class);
+                    logger.debug("Using Spring bean RestTemplate '{}' for URL: {}", beanName, url);
+                    return springBean;
+                } catch (Exception e) {
+                    logger.warn("Failed to get Spring bean '{}', using default: {}", beanName, e.getMessage());
+                }
             }
         }
         
+        // 3. Fallback to default RestTemplate
+        logger.debug("Using default RestTemplate for URL: {}", url);
+        return defaultRestTemplate;
+    }
+    
+    /**
+     * Find legacy custom RestTemplate for URL (backward compatibility).
+     * 
+     * @param url Request URL
+     * @return Matching RestTemplate or null if not found
+     */
+    private RestTemplate findLegacyRestTemplate(String url) {
+        for (Map.Entry<String, RestTemplate> entry : legacyCustomRestTemplates.entrySet()) {
+            String pattern = entry.getKey();
+            if (matchesPattern(url, pattern)) {
+                return entry.getValue();
+            }
+        }
         return null;
     }
     
     /**
-     * Find custom RestTemplate for URL based on registered patterns
+     * Check if URL matches a wildcard pattern.
+     * 
+     * @param url URL to check
+     * @param pattern Pattern with wildcards (* supported)
+     * @return true if URL matches pattern
      */
-    private RestTemplate findCustomRestTemplate(String url) {
-        // Exact match first
-        if (customRestTemplates.containsKey(url)) {
-            return customRestTemplates.get(url);
+    private boolean matchesPattern(String url, String pattern) {
+        if (pattern.equals(url)) {
+            return true; // Exact match
         }
         
-        // Pattern matching
-        for (Map.Entry<String, RestTemplate> entry : customRestTemplates.entrySet()) {
-            String pattern = entry.getKey();
-            if (url.matches(pattern.replace("*", ".*"))) {
-                return entry.getValue();
-            }
+        if (pattern.contains("*")) {
+            // Simple wildcard matching
+            String regex = pattern.replace("*", ".*");
+            return url.matches(regex);
         }
         
-        return null;
+        return false;
     }
     
     /**
-     * Find custom RestTemplate configuration for URL based on registered patterns
-     */
-    private RestTemplateConfig findCustomRestTemplateConfig(String url) {
-        // Exact match first
-        if (customRestTemplateConfigs.containsKey(url)) {
-            return customRestTemplateConfigs.get(url);
-        }
-        
-        // Pattern matching
-        for (Map.Entry<String, RestTemplateConfig> entry : customRestTemplateConfigs.entrySet()) {
-            String pattern = entry.getKey();
-            if (url.matches(pattern.replace("*", ".*"))) {
-                return entry.getValue();
-            }
-        }
-        
-        return null;
-    }
-    
-    /**
-     * Detect protocol based on request characteristics
+     * Detect protocol (REST vs SOAP) based on request characteristics.
+     * 
+     * @param request API request to analyze
+     * @return Detected protocol ("REST" or "SOAP")
      */
     private String detectProtocol(ApiRequest request) {
-        // Check if SOAP action is present
-        if (request.getSoapAction() != null && !request.getSoapAction().trim().isEmpty()) {
+        // SOAP indicators
+        if (StringUtils.hasText(request.getSoapAction())) {
             return "SOAP";
         }
         
-        // Check content type headers
-        String contentType = request.getHeaders().get("Content-Type");
-        if (contentType != null && (contentType.contains("text/xml") || contentType.contains("application/soap+xml"))) {
+        if (request.getBody() != null && 
+            request.getBody().toString().contains("soap:Envelope")) {
             return "SOAP";
         }
         
-        // Check if body contains SOAP envelope
-        if (request.getBody() instanceof String) {
-            String body = (String) request.getBody();
-            if (body.contains("soap:Envelope") || body.contains("Envelope")) {
+        if (request.getHeaders() != null) {
+            String contentType = request.getHeaders().get("Content-Type");
+            if (contentType != null && 
+                (contentType.contains("text/xml") || contentType.contains("application/soap+xml"))) {
                 return "SOAP";
             }
         }
         
         // Default to REST
         return "REST";
-    }
-    
-    /**
-     * Health check method
-     */
-    public boolean isHealthy() {
-        return true; // Can be extended to check client health
-    }
-    
-    /**
-     * Get framework configuration
-     */
-    public ApiProperties getConfiguration() {
-        return apiProperties;
     }
 } 
