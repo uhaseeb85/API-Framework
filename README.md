@@ -14,6 +14,10 @@ A comprehensive Spring Boot framework for integrating with external REST and SOA
 - **Async Support**: Non-blocking API calls with callback handling
 - **Enterprise Features**: Health checks, configuration management, and monitoring support
 
+## 🚀 Getting Started
+
+**New to the framework?** Check out our comprehensive **[Developer Onboarding Guide](DEVELOPER_ONBOARDING.md)** with step-by-step instructions to get you up and running in 15 minutes!
+
 ## Quick Start
 
 ### 1. Add Dependencies
