@@ -1,0 +1,5 @@
+com\company\apiframework\ApiFrameworkTest.class
+com\company\apiframework\CustomRestTemplateTest$TestResponse.class
+com\company\apiframework\CustomApiMockTest.class
+com\company\apiframework\CustomRestTemplateTest.class
+com\company\apiframework\ApiFrameworkTest$TestDto.class
