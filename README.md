@@ -2,28 +2,6 @@
 
 A comprehensive Spring-based framework for standardizing external API integrations across your team. This framework supports both REST and SOAP protocols with consistent request/response handling, centralized error management, and robust testing capabilities.
 
-## 🚀 Recent Updates (v1.1.0)
-
-### ⭐ **Major Enhancements**
-
-- **🔧 Per-Template Configuration**: New Java-based configuration system allowing different RestTemplate settings per API
-- **⚡ Performance Optimization**: RestTemplate caching at startup eliminates request-time creation overhead
-- **📚 Complete Documentation**: Comprehensive JavaDoc documentation added to all critical classes
-- **🎯 Runtime Management**: Dynamic configuration management and monitoring capabilities
-- **🏗️ Resource Management**: Automatic connection pool cleanup and lifecycle management
-
-### 🆕 **New Classes**
-
-- `RestTemplateConfig`: Java-based configuration with builder pattern and validation
-- `RestTemplateFactory`: Factory service for creating optimized RestTemplate instances  
-- `RestTemplateConfigExample`: Real-world configuration examples and best practices
-
-### 🔄 **Breaking Changes**
-
-- **None** - All changes are backward compatible with existing implementations
-- Previous RestTemplate registration methods continue to work as before
-- New configuration system works alongside existing approaches
-
 ## Features
 
 - **✅ REST and SOAP Support**: Unified interface for both REST and SOAP API calls
